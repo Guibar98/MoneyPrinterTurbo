@@ -50,36 +50,15 @@ jobs:
             --font-name "BeVietnamPro-Bold.ttf" \
             --bgm-type random \
             --bgm-volume 0.11 \
-            --stop-at video | tee result.json
+            --stop-at video
 
       - name: Collect result
         shell: bash
         run: |
-          python - <<'PY'
-          import json
-          from pathlib import Path
-          data=json.loads(Path('result.json').read_text())
-          candidates=[]
-          def walk(v):
-              if isinstance(v, dict):
-                  for k,val in v.items():
-                      if isinstance(val, str) and val.endswith('.mp4'):
-                          candidates.append(val)
-                      walk(val)
-              elif isinstance(v, list):
-                  for x in v: walk(x)
-          walk(data)
-          for c in candidates:
-              p=Path(c)
-              if p.exists():
-                  Path('artifact').mkdir(exist_ok=True)
-                  target=Path('artifact/unseen-domino-phantom-traffic-jam.mp4')
-                  target.write_bytes(p.read_bytes())
-                  print(target)
-                  break
-          else:
-              raise SystemExit(f'No generated MP4 found in result: {candidates}')
-          PY
+          mkdir -p artifact
+          video="$(find storage/tasks -type f -name 'final-1.mp4' -print -quit)"
+          test -n "$video"
+          cp "$video" artifact/unseen-domino-phantom-traffic-jam.mp4
 
       - name: Upload final video
         uses: actions/upload-artifact@v4
