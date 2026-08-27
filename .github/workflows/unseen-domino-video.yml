@@ -1,6 +1,9 @@
 name: Unseen Domino Video
 
 on:
+  push:
+    branches:
+      - unseen-domino-video
   workflow_dispatch:
 
 jobs:
