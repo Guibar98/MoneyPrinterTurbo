@@ -1,0 +1,86 @@
+name: Unseen Domino Video
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-video:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: unseen-domino-video
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg fonts-dejavu-core
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: latest
+
+      - name: Generate animated local footage
+        run: uv run --no-project --python 3.11 --with pillow --with numpy python tools/unseen_domino_assets.py
+
+      - name: Prepare config
+        run: cp config.example.toml config.toml
+
+      - name: Generate final video with MoneyPrinterTurbo
+        run: |
+          uv sync
+          uv run python cli.py \
+            --video-script "One driver taps the brakes for a second. Behind them, something invisible starts moving backward. The next driver brakes a little harder, then the next. In moments, a tiny slowdown becomes a wave through traffic — with no crash and no roadwork. It's called a phantom traffic jam. One tiny action. Hundreds of consequences. That's the unseen domino." \
+            --video-language en-US \
+            --video-source local \
+            --video-materials "storage/local_videos/unseen_domino/01_brake.mp4,storage/local_videos/unseen_domino/02_ripple.mp4,storage/local_videos/unseen_domino/03_reaction.mp4,storage/local_videos/unseen_domino/04_open_highway.mp4,storage/local_videos/unseen_domino/05_phantom.mp4,storage/local_videos/unseen_domino/06_endcard.mp4" \
+            --video-aspect 16:9 \
+            --video-concat-mode sequential \
+            --video-transition-mode fade-in \
+            --video-clip-duration 5 \
+            --voice-name en-US-AndrewNeural \
+            --voice-rate 1.03 \
+            --subtitle-enabled \
+            --subtitle-position bottom \
+            --font-name "BeVietnamPro-Bold.ttf" \
+            --bgm-type random \
+            --bgm-volume 0.11 \
+            --stop-at video | tee result.json
+
+      - name: Collect result
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          data=json.loads(Path('result.json').read_text())
+          candidates=[]
+          def walk(v):
+              if isinstance(v, dict):
+                  for k,val in v.items():
+                      if isinstance(val, str) and val.endswith('.mp4'):
+                          candidates.append(val)
+                      walk(val)
+              elif isinstance(v, list):
+                  for x in v: walk(x)
+          walk(data)
+          for c in candidates:
+              p=Path(c)
+              if p.exists():
+                  Path('artifact').mkdir(exist_ok=True)
+                  target=Path('artifact/unseen-domino-phantom-traffic-jam.mp4')
+                  target.write_bytes(p.read_bytes())
+                  print(target)
+                  break
+          else:
+              raise SystemExit(f'No generated MP4 found in result: {candidates}')
+          PY
+
+      - name: Upload final video
+        uses: actions/upload-artifact@v4
+        with:
+          name: unseen-domino-video
+          path: artifact/unseen-domino-phantom-traffic-jam.mp4
+          if-no-files-found: error
